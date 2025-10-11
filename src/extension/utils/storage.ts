@@ -13,6 +13,7 @@ export type StoredData = {
   theme?: "light" | "dark" | "system";
   lastError?: string;
   lastErrorTime?: number;
+  apiMinimumVersion?: string;
 };
 
 export class ChromeStorage {
@@ -114,6 +115,17 @@ export class ChromeStorage {
     await this.set({
       lastError: errorMessage,
       lastErrorTime: Date.now(),
+    });
+  }
+
+  static async getApiMinimumVersion(): Promise<string | undefined> {
+    const result = await this.get(["apiMinimumVersion"]);
+    return result.apiMinimumVersion;
+  }
+
+  static async setApiMinimumVersion(version: string): Promise<void> {
+    await this.set({
+      apiMinimumVersion: version,
     });
   }
 }

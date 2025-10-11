@@ -9,6 +9,14 @@ import type {
   GraphResponse,
 } from "../../types";
 
+// Type for API error response with minimum version requirement
+type ApiMinimumVersionError = {
+  status: number;
+  data: {
+    minimumVersion: string;
+  };
+};
+
 // API Configuration
 const buildApiUrl = (region?: string): string => {
   return region
@@ -17,20 +25,60 @@ const buildApiUrl = (region?: string): string => {
 };
 
 let API_BASE_URL = buildApiUrl();
-const HEADERS = {
-  "accept-encoding": "gzip",
-  "cache-control": "no-cache",
-  connection: "Keep-Alive",
-  "content-type": "application/json",
-  product: "llu.android",
-  version: "4.13.0",
+const DEFAULT_API_VERSION = "4.16.0";
+
+// Dynamic headers that use persisted minimum version if available
+const getHeaders = async (): Promise<Record<string, string>> => {
+  const storedVersion = await ChromeStorage.getApiMinimumVersion();
+  const version = storedVersion || DEFAULT_API_VERSION;
+
+  return {
+    "accept-encoding": "gzip",
+    "cache-control": "no-cache",
+    connection: "Keep-Alive",
+    "content-type": "application/json",
+    product: "llu.android",
+    version,
+  };
 };
 
-// Configure axios instance
+// Configure axios instance with base URL only (headers set dynamically per request)
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  headers: HEADERS,
 });
+
+// Helper function to update axios default headers with stored version
+const updateAxiosHeaders = async (): Promise<void> => {
+  const headers = await getHeaders();
+  // Update axios instance defaults with dynamic headers
+  apiClient.defaults.headers.common = {
+    ...apiClient.defaults.headers.common,
+    ...headers,
+  };
+};
+
+// Helper function to detect and handle minimum version errors
+const handleMinimumVersionError = async (error: unknown): Promise<boolean> => {
+  if (axios.isAxiosError(error)) {
+    const responseData = error.response?.data as
+      | ApiMinimumVersionError
+      | undefined;
+    const minimumVersion = responseData?.data?.minimumVersion;
+    const status = error.response?.status;
+
+    // Check if this is a 403 error with minimum version requirement
+    if (status === 403 && minimumVersion) {
+      console.log(
+        `🔄 API requires minimum version ${minimumVersion}. Updating stored version...`,
+      );
+      await ChromeStorage.setApiMinimumVersion(minimumVersion);
+      // Update axios headers with new version
+      await updateAxiosHeaders();
+      return true; // Indicates version was updated
+    }
+  }
+  return false; // No version update needed
+};
 
 class LibreViewAPI {
   private auth: ApiResponse | null = null;
@@ -44,10 +92,25 @@ class LibreViewAPI {
       );
     }
 
-    const response = await apiClient.post<LoginResponse>("/llu/auth/login", {
-      email: credentials.email,
-      password: credentials.password,
-    });
+    // Ensure axios headers are up to date with stored version
+    await updateAxiosHeaders();
+
+    let response: { data: LoginResponse };
+
+    try {
+      response = await apiClient.post<LoginResponse>("/llu/auth/login", {
+        email: credentials.email,
+        password: credentials.password,
+      });
+    } catch (error) {
+      // Check for minimum version error and retry if needed
+      const versionUpdated = await handleMinimumVersionError(error);
+      if (versionUpdated) {
+        console.log("🔄 Retrying authentication with updated API version...");
+        return this.authenticate();
+      }
+      throw error;
+    }
 
     const loginResponse = response.data;
 
@@ -89,16 +152,29 @@ class LibreViewAPI {
       // SHA256 digest of a user's id as a 64-char hexadecimal string
       const accountIdHash = await this.sha256(accountId);
 
-      // Retrieve patientId
-      const connectionsResponse = await apiClient.get<ConnectionsResponse>(
-        "/llu/connections",
-        {
-          headers: {
-            authorization: `Bearer ${jwtToken}`,
-            "account-id": accountIdHash,
+      // Retrieve patientId with version error handling
+      let connectionsResponse: { data: ConnectionsResponse };
+      try {
+        connectionsResponse = await apiClient.get<ConnectionsResponse>(
+          "/llu/connections",
+          {
+            headers: {
+              authorization: `Bearer ${jwtToken}`,
+              "account-id": accountIdHash,
+            },
           },
-        },
-      );
+        );
+      } catch (error) {
+        // Check for minimum version error and retry if needed
+        const versionUpdated = await handleMinimumVersionError(error);
+        if (versionUpdated) {
+          console.log(
+            "🔄 Retrying connections request with updated API version...",
+          );
+          return this.authenticate();
+        }
+        throw error;
+      }
 
       const connectionsData = connectionsResponse.data;
       const patientId = connectionsData?.data?.[0]?.patientId;
@@ -119,16 +195,29 @@ class LibreViewAPI {
     // SHA256 digest of a user's id as a 64-char hexadecimal string
     const accountIdHash = await this.sha256(accountId);
 
-    // Retrieve patientId
-    const connectionsResponse = await apiClient.get<ConnectionsResponse>(
-      "/llu/connections",
-      {
-        headers: {
-          authorization: `Bearer ${jwtToken}`,
-          "account-id": accountIdHash,
+    // Retrieve patientId with version error handling
+    let connectionsResponse: { data: ConnectionsResponse };
+    try {
+      connectionsResponse = await apiClient.get<ConnectionsResponse>(
+        "/llu/connections",
+        {
+          headers: {
+            authorization: `Bearer ${jwtToken}`,
+            "account-id": accountIdHash,
+          },
         },
-      },
-    );
+      );
+    } catch (error) {
+      // Check for minimum version error and retry if needed
+      const versionUpdated = await handleMinimumVersionError(error);
+      if (versionUpdated) {
+        console.log(
+          "🔄 Retrying connections request with updated API version...",
+        );
+        return this.authenticate();
+      }
+      throw error;
+    }
 
     const connectionsData = connectionsResponse.data;
     const patientId = connectionsData?.data?.[0]?.patientId;
@@ -173,14 +262,34 @@ class LibreViewAPI {
 
       graphResponse = response.data;
     } catch (error) {
+      // Check for minimum version error and update if needed
+      const versionUpdated = await handleMinimumVersionError(error);
+      if (versionUpdated) {
+        // Retry with updated version
+        console.log("🔄 Retrying request with updated API version...");
+        return this.fetchGlucoseData();
+      }
+
       // Try to re-authenticate once on failure
       if (axios.isAxiosError(error) && error.response?.status === 401) {
+        console.log("🔑 401 Unauthorized - Attempting re-authentication...");
         this.auth = null;
         await this.authenticate();
         return this.fetchGlucoseData();
       }
+
+      // Enhanced error message with more context
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+        const statusText = error.response?.statusText;
+        const url = error.config?.url;
+        throw new Error(
+          `Failed to fetch glucose data: HTTP ${status || "N/A"} ${statusText || error.message} (${url || "unknown endpoint"})`,
+        );
+      }
+
       throw new Error(
-        `Failed to fetch glucose data: ${axios.isAxiosError(error) ? error.message : "Unknown error"}`,
+        `Failed to fetch glucose data: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
 
@@ -292,7 +401,7 @@ class BackgroundService {
         timeSinceLastUpdate < this.MIN_UPDATE_INTERVAL_MS
       ) {
         console.log(
-          `Rate limiting: Only ${Math.round(
+          `⏸️ Rate limiting: Only ${Math.round(
             timeSinceLastUpdate / 1000,
           )}s since last update, minimum ${
             this.MIN_UPDATE_INTERVAL_MS / 1000
@@ -304,14 +413,19 @@ class BackgroundService {
       // Double-check credentials before fetching
       const credentials = await ChromeStorage.getCredentials();
       if (!credentials.email || !credentials.password) {
-        console.log("No credentials available, skipping glucose data update");
+        console.log(
+          "⚠️ No credentials available, skipping glucose data update",
+        );
         return;
       }
 
+      const timeSinceLastUpdateDisplay =
+        this.lastUpdateTime > 0
+          ? `${Math.round(timeSinceLastUpdate / 1000)}s since last update`
+          : "first update";
+
       console.log(
-        `Updating glucose data... (${Math.round(
-          timeSinceLastUpdate / 1000,
-        )}s since last update)`,
+        `🔄 Updating glucose data... (${timeSinceLastUpdateDisplay})`,
       );
 
       const result = await this.api.fetchGlucoseData();
@@ -386,16 +500,70 @@ class BackgroundService {
         console.log("No glucose data received from API");
       }
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      console.error("Failed to update glucose data:", errorMessage);
+      // Enhanced error logging with detailed context
+      let errorMessage = "Unknown error";
+      let errorDetails = "";
+
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+        const statusText = error.response?.statusText;
+        const responseData = error.response?.data;
+        const requestUrl = error.config?.url;
+        const requestMethod = error.config?.method?.toUpperCase();
+
+        errorMessage = `HTTP ${status || "N/A"}: ${statusText || error.message}`;
+        errorDetails = `${requestMethod || "GET"} ${requestUrl || "unknown endpoint"}`;
+
+        console.error(
+          `❌ Failed to update glucose data:
+  Error: ${errorMessage}
+  Request: ${errorDetails}
+  Response Data:`,
+          responseData || "No response data",
+        );
+
+        // Log additional context for specific error codes
+        if (status === 403) {
+          console.error(
+            "  ⚠️ 403 Forbidden: Authentication token may be invalid or expired. Will attempt re-authentication on next update.",
+          );
+        } else if (status === 401) {
+          console.error(
+            "  ⚠️ 401 Unauthorized: Credentials may be incorrect. Check email/password.",
+          );
+        } else if (status === 429) {
+          console.error(
+            "  ⚠️ 429 Too Many Requests: Rate limit exceeded. Will retry later.",
+          );
+        } else if (status === 500 || (status && status >= 500)) {
+          console.error(
+            "  ⚠️ Server Error: LibreView API is experiencing issues. Will retry later.",
+          );
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+        console.error(
+          `❌ Failed to update glucose data: ${errorMessage}`,
+          error,
+        );
+      } else {
+        errorMessage = String(error);
+        console.error(`❌ Failed to update glucose data: ${errorMessage}`);
+      }
 
       // Store the error for display in popup
-      await ChromeStorage.setError(errorMessage);
+      const fullErrorMessage = errorDetails
+        ? `${errorMessage} (${errorDetails})`
+        : errorMessage;
+      await ChromeStorage.setError(fullErrorMessage);
 
       // Check if we have existing glucose data to show with stale indicator
       const existingData = await ChromeStorage.getGlucoseData();
       if (existingData.value) {
+        console.log(
+          `ℹ️ Using cached glucose data: ${existingData.value} mg/dL (marked as stale)`,
+        );
+
         // Update icon with stale indicator
         await IconGenerator.updateBrowserIcon(existingData.value, true);
 
@@ -404,7 +572,12 @@ class BackgroundService {
           const latestDataPoint =
             existingData.data[existingData.data.length - 1];
           this.scheduleNextUpdate(latestDataPoint.Timestamp);
+          console.log(
+            "  Next retry will be scheduled based on last data timestamp",
+          );
         }
+      } else {
+        console.log("  ⚠️ No cached glucose data available");
       }
 
       // Update icon to show error state
@@ -494,13 +667,25 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 // Handle chrome alarms for periodic glucose updates
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === backgroundService.ALARM_NAME) {
-    console.log("Glucose update alarm triggered");
+    console.log(
+      "⏰ Glucose update alarm triggered at",
+      new Date().toLocaleTimeString(),
+    );
     try {
       await backgroundService.updateGlucoseData();
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      console.error("Alarm-triggered update failed:", errorMessage);
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+        const url = error.config?.url;
+        console.error(
+          `❌ Alarm-triggered update failed: HTTP ${status || "N/A"} (${url || "unknown endpoint"})`,
+          error.response?.data || error.message,
+        );
+      } else {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        console.error("❌ Alarm-triggered update failed:", errorMessage);
+      }
     }
   }
 });
