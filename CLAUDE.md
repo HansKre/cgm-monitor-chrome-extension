@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-LibreView Glucose Monitor is a Chrome Extension that provides real-time glucose monitoring functionality by integrating with the LibreView API (FreeStyle Libre CGM data). It features dynamic browser icons, interactive popup charts, and glucose trend projections.
+CGM Glucose Monitor is a Chrome Extension that provides real-time glucose monitoring functionality by integrating with the CGM API (FreeStyle Libre CGM data). It features dynamic browser icons, interactive popup charts, and glucose trend projections.
 
 ## Development Commands
 
@@ -95,7 +95,7 @@ Claude should proactively run these commands after making any code changes to ca
 
 ### Data Flow
 
-1. Background service worker authenticates with LibreView API using stored credentials
+1. Background service worker authenticates with CGM API using stored credentials
 2. Fetches glucose data every minute via Chrome alarms
 3. Updates browser icon with current glucose value and appropriate color
 4. Popup interface displays interactive Recharts visualization with actual + projected data
@@ -104,7 +104,7 @@ Claude should proactively run these commands after making any code changes to ca
 ## Key Dependencies
 
 - **recharts@3.1.2**: Modern chart visualization library with React 19 support
-- **axios**: HTTP client for LibreView API integration
+- **axios**: HTTP client for CGM API integration
 - **react@19.1.1** & **react-dom@19.1.1**: Latest React framework with new createRoot API
 - **webpack**: Extension bundling with TypeScript support
 
@@ -124,7 +124,7 @@ Claude should proactively run these commands after making any code changes to ca
 
 ### API Integration
 
-LibreView API endpoints:
+CGM API endpoints:
 
 - Authentication: POST `/llu/auth/login`
 - Glucose data: GET `/llu/connections/{patientId}/graph`

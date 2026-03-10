@@ -42,14 +42,15 @@ export const SettingsForm: React.FC<Props> = ({
         </div>
         <div>
           <strong>Note:</strong> FreeStyle Libre 3 CGM readings occur every
-          minute, but LibreView cloud sync updates only every 5 minutes. This is
-          a technical limitation of LibreView, not this extension.
+          minute, but FreeStyle Libre cloud sync updates only every 5 minutes.
+          This is a technical limitation of FreeStyle Libre, not this extension.
         </div>
       </div>
 
       <div className="settings-info">
-        Enter your LibreView credentials to enable automatic glucose monitoring.
-        Your credentials are stored securely in Chrome's local storage.
+        Enter your LibreLinkup-App credentials (not LibreView!) to enable
+        automatic glucose monitoring. Your credentials are stored securely in
+        Chrome's local storage.
       </div>
 
       <form onSubmit={onSubmit}>

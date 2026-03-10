@@ -57,8 +57,8 @@ This project is **not affiliated with any CGM device manufacturer**.
 1. **Clone the repository:**
 
    ```bash
-   git clone https://github.com/HansKre/libreview-monitor.git
-   cd libreview-monitor
+   git clone https://github.com/HansKre/cgm-monitor-chrome-extension.git
+   cd cgm-monitor-chrome-extension
    pnpm install
    ```
 
@@ -132,8 +132,8 @@ Contributions are welcome! Please feel free to:
 ### Development Setup
 
 ```bash
-git clone https://github.com/HansKre/libreview-monitor.git
-cd libreview-monitor
+git clone https://github.com/HansKre/cgm-monitor-chrome-extension.git
+cd cgm-monitor-chrome-extension
 pnpm install
 pnpm run watch  # Builds with file watching
 ```
