@@ -6,6 +6,7 @@ type Props = {
   credentials: { email: string; password: string };
   setCredentials: (credentials: { email: string; password: string }) => void;
   onSubmit: (e: React.FormEvent) => void;
+  onDelete: () => void;
   saveMessage: { text: string; type: "success" | "error" } | null;
 };
 
@@ -13,6 +14,7 @@ export const SettingsForm: React.FC<Props> = ({
   credentials,
   setCredentials,
   onSubmit,
+  onDelete,
   saveMessage,
 }) => {
   const { themeColors } = useTheme();
@@ -81,6 +83,15 @@ export const SettingsForm: React.FC<Props> = ({
 
         <button type="submit" className="btn">
           Save Credentials
+        </button>
+
+        <button
+          type="button"
+          className="btn"
+          style={{ marginTop: "8px", background: "#c0392b" }}
+          onClick={onDelete}
+        >
+          Delete Credentials
         </button>
 
         {saveMessage && (

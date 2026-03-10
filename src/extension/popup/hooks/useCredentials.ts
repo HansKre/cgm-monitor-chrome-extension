@@ -79,6 +79,27 @@ export const useCredentials = () => {
     setTimeout(() => setSaveMessage(null), 5000);
   };
 
+  const deleteCredentials = async () => {
+    try {
+      const response = await sendMessage({ type: "DELETE_CREDENTIALS" });
+      if (response.success) {
+        setCredentials({ email: "", password: "" });
+        setSaveMessage({ text: "Credentials deleted.", type: "success" });
+      } else {
+        setSaveMessage({
+          text: `Failed to delete credentials: ${response.error}`,
+          type: "error",
+        });
+      }
+    } catch {
+      setSaveMessage({
+        text: "Failed to delete credentials. Please try again.",
+        type: "error",
+      });
+    }
+    setTimeout(() => setSaveMessage(null), 5000);
+  };
+
   useEffect(() => {
     loadCredentials();
   }, []);
@@ -87,6 +108,7 @@ export const useCredentials = () => {
     credentials,
     setCredentials,
     saveCredentials,
+    deleteCredentials,
     saveMessage,
   };
 };

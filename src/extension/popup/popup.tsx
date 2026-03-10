@@ -12,8 +12,13 @@ const PopupApp: React.FC = () => {
   const [graphRenderKey, setGraphRenderKey] = useState(0);
   const { glucoseData, loading, error, forceUpdate } =
     useGlucoseData(currentTab);
-  const { credentials, setCredentials, saveCredentials, saveMessage } =
-    useCredentials();
+  const {
+    credentials,
+    setCredentials,
+    saveCredentials,
+    deleteCredentials,
+    saveMessage,
+  } = useCredentials();
 
   const handleGraphTabClick = () => {
     if (currentTab === "graph") {
@@ -83,6 +88,7 @@ const PopupApp: React.FC = () => {
             credentials={credentials}
             setCredentials={setCredentials}
             onSubmit={saveCredentials}
+            onDelete={deleteCredentials}
             saveMessage={saveMessage}
           />
         )}

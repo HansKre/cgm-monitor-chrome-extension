@@ -604,6 +604,17 @@ class BackgroundService {
         }
         break;
 
+      case "DELETE_CREDENTIALS":
+        try {
+          await ChromeStorage.setCredentials({});
+          this.api = new LibreViewAPI();
+          chrome.alarms.clear(this.ALARM_NAME);
+          sendResponse({ success: true });
+        } catch (error) {
+          sendResponse({ success: false, error: (error as Error).message });
+        }
+        break;
+
       case "FORCE_UPDATE":
         try {
           console.log("Force update requested from popup");
