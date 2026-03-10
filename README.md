@@ -1,12 +1,12 @@
-# LibreView Glucose Monitor Chrome Extension
+# CGM Glucose Monitor Chrome Extension
 
-**LibreView Glucose Monitor** – A Chrome extension for FreeStyle Libre users that provides real-time blood glucose monitoring with interactive visualizations and intelligent trend analysis directly in your browser. [Install it from the Chrome Web Store](https://chromewebstore.google.com/detail/libreview-glucose-monitor/emfglagmlmkbmoacmidocogloijnkmma).
+**CGM Glucose Monitor** – A Chrome extension for CGM users that provides real-time blood glucose monitoring with interactive visualizations and intelligent trend analysis directly in your browser. [Install it from the Chrome Web Store](https://chromewebstore.google.com/detail/libreview-glucose-monitor/emfglagmlmkbmoacmidocogloijnkmma).
 
 ---
 
 ## ⚠️ Important Disclaimer
 
-This project is **not affiliated with Abbott Laboratories** or the official FreeStyle Libre product line.  
+This project is **not affiliated with any CGM device manufacturer**.
 **Use at your own risk.** Data accuracy may vary. Always follow guidance from your healthcare provider. This extension is for informational purposes only and should not replace professional medical advice, diagnosis, or treatment.
 
 ---
@@ -33,7 +33,7 @@ This project is **not affiliated with Abbott Laboratories** or the official Free
 
 - **Encrypted credential storage** using Chrome Storage API
 - **Automatic token refresh** to maintain connection
-- **HTTPS-only API communication** with LibreView servers
+- **HTTPS-only API communication** with CGM servers
 
 ### 🎨 Professional Interface
 
@@ -59,13 +59,13 @@ This project is **not affiliated with Abbott Laboratories** or the official Free
    ```bash
    git clone https://github.com/HansKre/libreview-monitor.git
    cd libreview-monitor
-   npm install
+   pnpm install
    ```
 
 2. **Build the extension:**
 
    ```bash
-   npm run build:extension
+   pnpm run build
    ```
 
 3. **Load in Chrome:**
@@ -76,7 +76,7 @@ This project is **not affiliated with Abbott Laboratories** or the official Free
 
 4. **Initial Setup:**
    - Click the extension icon in your browser toolbar
-   - Enter your LibreView credentials (same as FreeStyle LibreLink app)
+   - Enter your CGM credentials
    - Click "Save" and wait for initial data sync
    - The browser icon will update with your current glucose value
 
@@ -86,16 +86,16 @@ This project is **not affiliated with Abbott Laboratories** or the official Free
 
 ```bash
 # Build extension for production
-npm run build:extension
+pnpm run build:extension
 
 # Build extension with development mode and file watching
-npm run build:extension:dev
+pnpm run build:extension:dev
 
 # Lint TypeScript/TSX files
-npm run lint
+pnpm run lint
 
 # Auto-fix linting issues
-npm run lint:fix
+pnpm run lint:fix
 ```
 
 ### Architecture Overview
@@ -109,12 +109,12 @@ npm run lint:fix
 
 - **Frontend**: React 19, TypeScript, Recharts
 - **Build**: Webpack 5 with Chrome Extension optimization
-- **APIs**: LibreView REST API integration
+- **APIs**: CGM REST API integration
 - **Storage**: Chrome Storage API with encryption
 
 ## 🔐 Privacy & Security
 
-- **No data collection**: Your glucose data stays on your device and goes directly to LibreView
+- **No data collection**: Your glucose data stays on your device and goes directly to the CGM platform
 - **Secure storage**: Credentials encrypted using Chrome's built-in storage APIs
 - **HTTPS only**: All API communications use secure connections
 - **No tracking**: Extension doesn't track usage or personal information
@@ -134,15 +134,15 @@ Contributions are welcome! Please feel free to:
 ```bash
 git clone https://github.com/HansKre/libreview-monitor.git
 cd libreview-monitor
-npm install
-npm run watch  # Builds with file watching
+pnpm install
+pnpm run watch  # Builds with file watching
 ```
 
 ## 📊 How It Works
 
 ### Data Flow
 
-1. **Authentication**: Secure login to LibreView API using your FreeStyle LibreLink credentials
+1. **Authentication**: Secure login to CGM API using your credentials
 2. **Data Fetching**: Background service worker fetches glucose data every minute
 3. **Icon Updates**: Browser icon updates with current glucose value and color coding
 4. **Trend Analysis**: Linear regression calculates 60-minute glucose projections
@@ -159,9 +159,9 @@ npm run watch  # Builds with file watching
 
 **Q: My glucose data isn't updating**
 
-- Verify your LibreView credentials are correct
-- Check that you have an active FreeStyle Libre sensor
-- Ensure the extension has permission to access LibreView API
+- Verify your CGM credentials are correct
+- Check that you have an active CGM sensor
+- Ensure the extension has permission to access the CGM API
 
 **Q: The browser icon shows "?" or is blank**
 
@@ -172,7 +172,7 @@ npm run watch  # Builds with file watching
 **Q: Are my credentials safe?**
 
 - Yes, credentials are encrypted and stored locally using Chrome's secure storage
-- The extension only communicates with official LibreView servers
+- The extension only communicates with official CGM servers
 - No third-party services have access to your data
 
 ## Releasing
@@ -180,7 +180,7 @@ npm run watch  # Builds with file watching
 ### Prepare extension
 
 - update version in `manifest.json`
-- run `npm run release`
+- run `pnpm run release`
 
 ### Upload to Chrome Web Store
 

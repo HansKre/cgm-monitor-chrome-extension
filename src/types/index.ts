@@ -21,6 +21,7 @@ export type ApiResponse = {
 
 export type LoginResponse = {
   status?: number;
+  error?: { message?: string };
   data?: {
     authTicket?: { token?: string };
     user?: { id?: string };
