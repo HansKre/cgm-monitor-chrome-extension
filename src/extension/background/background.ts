@@ -83,38 +83,37 @@ const handleMinimumVersionError = async (error: unknown): Promise<boolean> => {
 class LibreViewAPI {
   private auth: ApiResponse | null = null;
 
-  async authenticate(): Promise<ApiResponse> {
-    const credentials = await ChromeStorage.getCredentials();
-
-    if (!credentials.email || !credentials.password) {
-      throw new Error(
-        "No credentials stored. Please configure in extension popup.",
-      );
-    }
-
-    // Ensure axios headers are up to date with stored version
+  private async performLogin(
+    email: string,
+    password: string,
+  ): Promise<{ jwtToken: string; accountId: string }> {
     await updateAxiosHeaders();
 
-    let response: { data: LoginResponse };
-
+    let loginResponse: LoginResponse;
     try {
-      response = await apiClient.post<LoginResponse>("/llu/auth/login", {
-        email: credentials.email,
-        password: credentials.password,
+      const response = await apiClient.post<LoginResponse>("/llu/auth/login", {
+        email,
+        password,
       });
+      loginResponse = response.data;
     } catch (error) {
-      // Check for minimum version error and retry if needed
       const versionUpdated = await handleMinimumVersionError(error);
       if (versionUpdated) {
         console.log("🔄 Retrying authentication with updated API version...");
-        return this.authenticate();
+        return this.performLogin(email, password);
+      }
+      if (axios.isAxiosError(error)) {
+        const responseData = error.response?.data as LoginResponse | undefined;
+        const serverMessage = responseData?.error?.message;
+        throw new Error(
+          serverMessage ||
+            `HTTP ${error.response?.status || "N/A"}: ${error.message}`,
+        );
       }
       throw error;
     }
 
-    const loginResponse = response.data;
-
-    // Check for redirect response
+    // Handle region redirect
     if (
       loginResponse?.status === 0 &&
       loginResponse?.data?.redirect === true &&
@@ -127,72 +126,45 @@ class LibreViewAPI {
         `Login redirect detected for region: ${region}, adjusting API URL to: ${newApiUrl}`,
       );
 
-      // Update the global API_BASE_URL
       API_BASE_URL = newApiUrl;
-
-      // Update the axios client's baseURL
       apiClient.defaults.baseURL = newApiUrl;
 
-      // Retry authentication with the new URL
       const retryResponse = await apiClient.post<LoginResponse>(
         "/llu/auth/login",
-        {
-          email: credentials.email,
-          password: credentials.password,
-        },
+        { email, password },
       );
-
-      const retryLoginResponse = retryResponse.data;
-      const jwtToken = retryLoginResponse?.data?.authTicket?.token;
-      const accountId = retryLoginResponse?.data?.user?.id;
-
-      if (!jwtToken) throw new Error("Authentication failed after redirect");
-      if (!accountId) throw new Error("Account ID not found after redirect");
-
-      // SHA256 digest of a user's id as a 64-char hexadecimal string
-      const accountIdHash = await this.sha256(accountId);
-
-      // Retrieve patientId with version error handling
-      let connectionsResponse: { data: ConnectionsResponse };
-      try {
-        connectionsResponse = await apiClient.get<ConnectionsResponse>(
-          "/llu/connections",
-          {
-            headers: {
-              authorization: `Bearer ${jwtToken}`,
-              "account-id": accountIdHash,
-            },
-          },
-        );
-      } catch (error) {
-        // Check for minimum version error and retry if needed
-        const versionUpdated = await handleMinimumVersionError(error);
-        if (versionUpdated) {
-          console.log(
-            "🔄 Retrying connections request with updated API version...",
-          );
-          return this.authenticate();
-        }
-        throw error;
-      }
-
-      const connectionsData = connectionsResponse.data;
-      const patientId = connectionsData?.data?.[0]?.patientId;
-
-      if (!patientId) throw new Error("No patient ID found after redirect");
-
-      this.auth = { jwtToken, accountIdHash, patientId };
-      return this.auth;
+      loginResponse = retryResponse.data;
     }
 
-    // Normal authentication flow (no redirect)
     const jwtToken = loginResponse?.data?.authTicket?.token;
     const accountId = loginResponse?.data?.user?.id;
 
-    if (!jwtToken) throw new Error("Authentication failed");
+    if (!jwtToken) {
+      throw new Error(loginResponse?.error?.message || "Authentication failed");
+    }
     if (!accountId) throw new Error("Account ID not found");
 
-    // SHA256 digest of a user's id as a 64-char hexadecimal string
+    return { jwtToken, accountId };
+  }
+
+  async validateCredentials(email: string, password: string): Promise<void> {
+    await this.performLogin(email, password);
+  }
+
+  async authenticate(): Promise<ApiResponse> {
+    const credentials = await ChromeStorage.getCredentials();
+
+    if (!credentials.email || !credentials.password) {
+      throw new Error(
+        "No credentials stored. Please configure in extension popup.",
+      );
+    }
+
+    const { jwtToken, accountId } = await this.performLogin(
+      credentials.email,
+      credentials.password,
+    );
+
     const accountIdHash = await this.sha256(accountId);
 
     // Retrieve patientId with version error handling
@@ -208,7 +180,6 @@ class LibreViewAPI {
         },
       );
     } catch (error) {
-      // Check for minimum version error and retry if needed
       const versionUpdated = await handleMinimumVersionError(error);
       if (versionUpdated) {
         console.log(
@@ -219,9 +190,7 @@ class LibreViewAPI {
       throw error;
     }
 
-    const connectionsData = connectionsResponse.data;
-    const patientId = connectionsData?.data?.[0]?.patientId;
-
+    const patientId = connectionsResponse.data?.data?.[0]?.patientId;
     if (!patientId) throw new Error("No patient ID found");
 
     this.auth = { jwtToken, accountIdHash, patientId };
@@ -615,6 +584,11 @@ class BackgroundService {
           if (!message.credentials) {
             throw new Error("No credentials provided");
           }
+          // Validate credentials with the server before saving
+          await this.api.validateCredentials(
+            message.credentials.email,
+            message.credentials.password,
+          );
           await ChromeStorage.setCredentials(message.credentials);
           // Clear auth to force re-authentication with new credentials
           this.api = new LibreViewAPI();
