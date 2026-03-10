@@ -276,11 +276,11 @@ class BackgroundService {
   private api = new LibreViewAPI();
   private lastUpdateTime = 0;
   private readonly MIN_UPDATE_INTERVAL_MS = 55000; // Minimum 55 seconds between updates
-  private readonly DATA_UPDATE_INTERVAL_MS = 5 * 60 * 1000; // LibreView updates every 5 minutes
+  private readonly DATA_UPDATE_INTERVAL_MS = 5 * 60 * 1000; // CGM cloud sync updates every 5 minutes
   readonly ALARM_NAME = "glucoseUpdate";
 
   async initialize() {
-    console.log("LibreView Extension Background Service Starting...");
+    console.log("CGM Extension Background Service Starting...");
 
     // Check if credentials exist before starting updates
     const credentials = await ChromeStorage.getCredentials();
@@ -308,7 +308,7 @@ class BackgroundService {
       // Set initial title to indicate setup needed
       if (chrome.action && chrome.action.setTitle) {
         chrome.action.setTitle({
-          title: "LibreView Glucose Monitor - Setup Required",
+          title: "CGM Glucose Monitor - Setup Required",
         });
       }
     }
@@ -552,7 +552,7 @@ class BackgroundService {
       // Update icon to show error state
       if (chrome.action && chrome.action.setTitle) {
         chrome.action.setTitle({
-          title: `LibreView Glucose Monitor - Error: ${errorMessage}`,
+          title: `CGM Glucose Monitor - Error: ${errorMessage}`,
         });
       }
     }
@@ -666,6 +666,6 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
 // Handle service worker lifecycle
 self.addEventListener("activate", () => {
-  console.log("LibreView Extension Service Worker Activated");
+  console.log("CGM Extension Service Worker Activated");
   backgroundService.initialize();
 });

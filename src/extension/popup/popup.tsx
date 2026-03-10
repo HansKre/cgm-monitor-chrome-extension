@@ -36,7 +36,7 @@ const PopupApp: React.FC = () => {
             height="24"
             style={{ verticalAlign: "middle", marginRight: "8px" }}
           />{" "}
-          LibreView Glucose Monitor
+          CGM Glucose Monitor
         </h1>
       </div>
 

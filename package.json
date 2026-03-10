@@ -1,5 +1,5 @@
 {
-  "name": "libreview-monitor",
+  "name": "cgm-monitor-chrome-extension",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
