@@ -12,23 +12,23 @@ LibreView Glucose Monitor is a Chrome Extension that provides real-time glucose 
 
 ```bash
 # Build Chrome extension for production
-npm run build
+pnpm run build
 
 # Build extension with development mode and file watching
-npm run watch
+pnpm run watch
 ```
 
 ### Code Quality
 
 ```bash
 # Lint TypeScript/TSX files
-npm run lint
+pnpm run lint
 
 # Auto-fix linting issues
-npm run lint:fix
+pnpm run lint:fix
 
 # TypeScript type checking
-npx tsc --noEmit --project .
+pnpm exec tsc --noEmit --project .
 ```
 
 ### Development Workflow
@@ -36,7 +36,7 @@ npx tsc --noEmit --project .
 **IMPORTANT**: After every code change, automatically run both linting and type checking to ensure code quality:
 
 ```bash
-npm run lint && npx tsc --noEmit --project .
+pnpm run lint && pnpm exec tsc --noEmit --project .
 ```
 
 Claude should proactively run these commands after making any code changes to catch and fix TypeScript errors, linting issues, and ensure code quality before proceeding.

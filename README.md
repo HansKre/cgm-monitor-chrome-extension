@@ -59,13 +59,13 @@ This project is **not affiliated with Abbott Laboratories** or the official Free
    ```bash
    git clone https://github.com/HansKre/libreview-monitor.git
    cd libreview-monitor
-   npm install
+   pnpm install
    ```
 
 2. **Build the extension:**
 
    ```bash
-   npm run build:extension
+   pnpm run build
    ```
 
 3. **Load in Chrome:**
@@ -86,16 +86,16 @@ This project is **not affiliated with Abbott Laboratories** or the official Free
 
 ```bash
 # Build extension for production
-npm run build:extension
+pnpm run build:extension
 
 # Build extension with development mode and file watching
-npm run build:extension:dev
+pnpm run build:extension:dev
 
 # Lint TypeScript/TSX files
-npm run lint
+pnpm run lint
 
 # Auto-fix linting issues
-npm run lint:fix
+pnpm run lint:fix
 ```
 
 ### Architecture Overview
@@ -134,8 +134,8 @@ Contributions are welcome! Please feel free to:
 ```bash
 git clone https://github.com/HansKre/libreview-monitor.git
 cd libreview-monitor
-npm install
-npm run watch  # Builds with file watching
+pnpm install
+pnpm run watch  # Builds with file watching
 ```
 
 ## 📊 How It Works
@@ -180,7 +180,7 @@ npm run watch  # Builds with file watching
 ### Prepare extension
 
 - update version in `manifest.json`
-- run `npm run release`
+- run `pnpm run release`
 
 ### Upload to Chrome Web Store
 

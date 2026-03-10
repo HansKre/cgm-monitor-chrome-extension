@@ -33,8 +33,9 @@ export const useCredentials = () => {
   const loadCredentials = async () => {
     try {
       const result = await chrome.storage.sync.get(["credentials"]);
-      const storedCredentials = result.credentials || {};
-      setCredentials({ email: storedCredentials.email || "", password: "" });
+      const storedCredentials = (result.credentials ||
+        {}) as Partial<Credentials>;
+      setCredentials({ email: storedCredentials.email ?? "", password: "" });
     } catch (err) {
       console.error("Failed to load credentials:", err);
     }

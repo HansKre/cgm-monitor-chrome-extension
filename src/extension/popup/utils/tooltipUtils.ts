@@ -1,7 +1,8 @@
 import { CHART_STYLES } from "../config/glucoseConfig";
 import type { GlucoseData } from "../../../types";
+import type { Formatter } from "recharts/types/component/DefaultTooltipContent";
 
-export const formatTooltipValue = (value: number, name: string) => {
+export const formatTooltipValue: Formatter = (value, name) => {
   if (name === "value") {
     return [`${value} mg/dL`, "Actual"];
   }
