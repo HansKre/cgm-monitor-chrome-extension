@@ -87,6 +87,12 @@ export const CHART_STYLES = {
   },
 } as const;
 
+// Projection uncertainty band configuration
+export const PROJECTION_UNCERTAINTY = {
+  base: 5, // ±5 mg/dL at first projection step (T+5min)
+  stepPerInterval: 3, // +3 mg/dL per additional 5-min interval → ±20 at T+30m, ±38 at T+60m
+} as const;
+
 // Animation configuration
 export const ANIMATION_CONFIG = {
   actualLine: {

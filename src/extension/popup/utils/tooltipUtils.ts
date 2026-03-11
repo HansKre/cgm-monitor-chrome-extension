@@ -1,16 +1,22 @@
 import { CHART_STYLES } from "../config/glucoseConfig";
 import type { GlucoseData } from "../../../types";
+import type { ChartDataPoint } from "./glucoseUtils";
 import type { Formatter } from "recharts/types/component/DefaultTooltipContent";
 
-export const formatTooltipValue: Formatter = (value, name) => {
+export const formatTooltipValue: Formatter = (value, name, item) => {
   if (name === "value") {
     return [`${value} mg/dL`, "Actual"];
   }
-  if (name === "projectedValue") {
-    return [`${value} mg/dL`, "Standard Projection"];
+  if (name === "projectionLowerBound") {
+    return [`${value} mg/dL`, "Projected Low"];
   }
   if (name === "timeAwareProjectedValue") {
-    return [`${value} mg/dL`, "Time-aware Projection"];
+    return [`${value} mg/dL`, "Projected Mid"];
+  }
+  if (name === "projectionBand") {
+    const point = (item as { payload: ChartDataPoint }).payload;
+    const upper = Math.round(point.projectionUpperBound ?? 0);
+    return [`${upper} mg/dL`, "Projected High"];
   }
   return [`${value} mg/dL`, "Glucose"];
 };

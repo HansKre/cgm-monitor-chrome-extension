@@ -2,6 +2,7 @@ import type { GlucoseData } from "../../../types";
 import {
   getGlucoseStatusFromConfig,
   getGlucoseColorFromConfig,
+  PROJECTION_UNCERTAINTY,
 } from "../config/glucoseConfig";
 
 export type GlucoseStatus = {
@@ -176,8 +177,10 @@ export type ChartDataPoint = {
   time: number; // Unix timestamp for linear time scale
   timeLabel: string; // Formatted time label for display
   value: number | null;
-  projectedValue: number | null;
   timeAwareProjectedValue: number | null;
+  projectionLowerBound: number | null; // lower edge of uncertainty band (tooltip)
+  projectionUpperBound: number | null; // upper edge of uncertainty band (tooltip)
+  projectionBand: [number, number] | null; // [lower, upper] for recharts range Area
   timestamp: string;
   color: string;
   isProjected: boolean;
@@ -250,51 +253,45 @@ export const formatChartData = (data: GlucoseData[]): ChartDataPoint[] => {
       }),
       value: isGap ? null : item.Value,
       // Add projected values to last actual data point to ensure smooth connection
-      projectedValue: isLastOriginalPoint ? item.Value : null,
       timeAwareProjectedValue: isLastOriginalPoint ? item.Value : null,
+      projectionLowerBound: isLastOriginalPoint ? item.Value : null,
+      projectionUpperBound: isLastOriginalPoint ? item.Value : null,
+      projectionBand: isLastOriginalPoint ? [item.Value, item.Value] : null,
       timestamp: item.Timestamp,
       color: isGap ? "#000000" : getGlucoseColor(item.Value),
       isProjected: false,
     };
   });
 
-  // Generate standard projection data
-  const standardProjections = calculateProjection(data);
   // Generate time-aware projection data
   const timeAwareProjections = calculateTimeAwareProjection(data);
 
-  // Combine both projections into a single timeline, using the longer of the two projection sets
-  const maxProjectionCount = Math.max(
-    standardProjections.length,
-    timeAwareProjections.length,
+  const combinedProjections: ChartDataPoint[] = timeAwareProjections.map(
+    (proj, i) => {
+      const uncertainty =
+        PROJECTION_UNCERTAINTY.base +
+        PROJECTION_UNCERTAINTY.stepPerInterval * i;
+      const upperBound = Math.min(400, proj.value + uncertainty);
+      const lowerBound = Math.max(0, proj.value - uncertainty);
+
+      return {
+        time: proj.timestamp,
+        timeLabel: new Date(proj.timestamp).toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        }),
+        value: null,
+        timeAwareProjectedValue: proj.value,
+        projectionLowerBound: lowerBound,
+        projectionUpperBound: upperBound,
+        projectionBand: [lowerBound, upperBound],
+        timestamp: new Date(proj.timestamp).toISOString(),
+        color: getGlucoseColor(proj.value),
+        isProjected: true,
+      };
+    },
   );
-  const combinedProjections: ChartDataPoint[] = [];
-
-  for (let i = 0; i < maxProjectionCount; i++) {
-    const standardProj = standardProjections[i];
-    const timeAwareProj = timeAwareProjections[i];
-
-    // Use the timestamp from whichever projection exists (they should be similar)
-    const timestamp = standardProj?.timestamp || timeAwareProj?.timestamp;
-    if (!timestamp) continue;
-
-    combinedProjections.push({
-      time: timestamp, // Use timestamp for linear time scale
-      timeLabel: new Date(timestamp).toLocaleTimeString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      }),
-      value: null, // No actual value for projected data
-      projectedValue: standardProj?.value || null,
-      timeAwareProjectedValue: timeAwareProj?.value || null,
-      timestamp: new Date(timestamp).toISOString(),
-      color: getGlucoseColor(
-        standardProj?.value || timeAwareProj?.value || 100,
-      ),
-      isProjected: true,
-    });
-  }
 
   return [...actualData, ...combinedProjections];
 };

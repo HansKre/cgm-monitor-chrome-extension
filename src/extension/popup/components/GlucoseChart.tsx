@@ -1,7 +1,7 @@
 import React from "react";
 import {
   CartesianGrid,
-  LineChart,
+  ComposedChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -11,8 +11,8 @@ import type { GlucoseData } from "../../../types";
 import { Y_AXIS_CONFIG } from "../config/glucoseConfig";
 import { getThemeAwareChartStyles } from "../config/themeConfig";
 import { useTheme } from "../contexts/ThemeContext";
-import { formatChartData } from "../utils/glucoseUtils";
-import { formatTooltipLabel, formatTooltipValue } from "../utils/tooltipUtils";
+import { formatChartData, getGlucoseColor } from "../utils/glucoseUtils";
+import type { ChartDataPoint } from "../utils/glucoseUtils";
 import { ChartLegend } from "./ChartLegend";
 import { ChartLoadingStates } from "./ChartLoadingStates";
 import { ChartTitle } from "./ChartTitle";
@@ -125,11 +125,14 @@ export const GlucoseChart: React.FC<Props> = ({
     // Remove the first tick to eliminate the leftmost label
     const filteredTicks = ticks.slice(1);
 
+    // Extend domain beyond roundedMaxTime to accommodate 60 min of projection
+    // data, so the last labeled tick is no longer pinned to the right boundary.
+    const projectionEndTime = maxTime + 60 * 60 * 1000;
     return {
       ticks: filteredTicks,
       interval: 0 as const,
-      minDomain: minTime, // Start at actual first data point
-      maxDomain: roundedMaxTime,
+      minDomain: minTime,
+      maxDomain: Math.max(roundedMaxTime, projectionEndTime),
     };
   };
 
@@ -144,9 +147,14 @@ export const GlucoseChart: React.FC<Props> = ({
       };
     }
 
-    // Get all glucose values (both actual and projected)
+    // Get all glucose values (both actual and projected, including band bounds)
     const glucoseValues = chartData
-      .flatMap((d) => [d.value, d.projectedValue, d.timeAwareProjectedValue])
+      .flatMap((d) => [
+        d.value,
+        d.timeAwareProjectedValue,
+        d.projectionLowerBound,
+        d.projectionUpperBound,
+      ])
       .filter((v): v is number => v !== null && v !== undefined);
 
     if (glucoseValues.length === 0) {
@@ -189,13 +197,83 @@ export const GlucoseChart: React.FC<Props> = ({
 
   const yAxisConfig = calculateYAxisConfig();
 
-  // Create theme-aware tooltip style
-  const tooltipContentStyle = {
-    backgroundColor: themeColors.background.primary,
-    border: `1px solid ${themeColors.border.primary}`,
-    borderRadius: "4px",
-    fontFamily: themeChartStyles.axis.fontFamily,
-    color: themeColors.text.primary,
+  type TooltipEntry = {
+    dataKey?: string | number | ((obj: unknown) => unknown);
+    value?: unknown;
+    payload?: unknown;
+  };
+
+  const isChartDataPoint = (v: unknown): v is ChartDataPoint =>
+    typeof v === "object" &&
+    v !== null &&
+    "isProjected" in v &&
+    "timeLabel" in v;
+
+  const renderTooltip = ({
+    active,
+    payload,
+  }: {
+    active?: boolean;
+    payload?: ReadonlyArray<TooltipEntry>;
+  }) => {
+    if (!active || !payload?.length) return null;
+
+    const rawPoint = payload[0]?.payload;
+    const point = isChartDataPoint(rawPoint) ? rawPoint : undefined;
+    const containerStyle: React.CSSProperties = {
+      backgroundColor: themeColors.background.primary,
+      border: `1px solid ${themeColors.border.primary}`,
+      borderRadius: "4px",
+      padding: "8px 12px",
+      fontFamily: themeChartStyles.axis.fontFamily,
+      fontSize: "12px",
+    };
+    const labelStyle: React.CSSProperties = {
+      color: themeColors.text.primary,
+      margin: "0 0 4px",
+      fontWeight: "bold",
+    };
+    const rowStyle = (color: string): React.CSSProperties => ({
+      color,
+      margin: "2px 0",
+    });
+
+    if (point?.isProjected) {
+      const low = point.projectionLowerBound;
+      const mid = point.timeAwareProjectedValue;
+      const high =
+        point.projectionUpperBound !== null
+          ? Math.round(point.projectionUpperBound)
+          : null;
+      const color = getGlucoseColor(mid ?? low ?? 100);
+
+      return (
+        <div style={containerStyle}>
+          <p style={labelStyle}>Time: {point.timeLabel}</p>
+          {high !== null && (
+            <p style={rowStyle(color)}>Projected High: {high} mg/dL</p>
+          )}
+          {mid !== null && (
+            <p style={rowStyle(color)}>Projected Mid: {mid} mg/dL</p>
+          )}
+          {low !== null && (
+            <p style={rowStyle(color)}>Projected Low: {low} mg/dL</p>
+          )}
+        </div>
+      );
+    }
+
+    const rawValue = payload.find((p) => p.dataKey === "value")?.value;
+    const value = typeof rawValue === "number" ? rawValue : undefined;
+    if (value === undefined) return null;
+    const color = getGlucoseColor(value);
+
+    return (
+      <div style={containerStyle}>
+        <p style={labelStyle}>Time: {point?.timeLabel}</p>
+        <p style={rowStyle(color)}>Glucose: {value} mg/dL</p>
+      </div>
+    );
   };
 
   return (
@@ -217,13 +295,11 @@ export const GlucoseChart: React.FC<Props> = ({
           margin: "0px -16px",
         }}
       >
-        <style>{`
-          .recharts-xAxis {
-            transform: translateX(-15px);
-          }
-        `}</style>
         <ResponsiveContainer width="100%" height={280}>
-          <LineChart data={chartData}>
+          <ComposedChart
+            data={chartData}
+            margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
+          >
             <CartesianGrid
               strokeDasharray={themeChartStyles.grid.strokeDasharray}
               stroke={themeChartStyles.grid.stroke}
@@ -274,33 +350,11 @@ export const GlucoseChart: React.FC<Props> = ({
                 offset: -1,
               }}
             />
-            <Tooltip
-              formatter={formatTooltipValue}
-              labelFormatter={(label, payload) => {
-                // Use timeLabel from payload data if available, fallback to formatted timestamp
-                if (
-                  payload &&
-                  payload[0] &&
-                  payload[0].payload &&
-                  payload[0].payload.timeLabel
-                ) {
-                  return formatTooltipLabel(payload[0].payload.timeLabel);
-                }
-                // Fallback: format the timestamp if no timeLabel available
-                return formatTooltipLabel(
-                  new Date(label).toLocaleTimeString("en-US", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    hour12: false,
-                  }),
-                );
-              }}
-              contentStyle={tooltipContentStyle}
-            />
+            <Tooltip content={renderTooltip} />
 
             <GlucoseLines data={data} currentValue={currentValue} />
             <ReferenceElements data={data} />
-          </LineChart>
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
       <ChartLegend currentValue={currentValue} />

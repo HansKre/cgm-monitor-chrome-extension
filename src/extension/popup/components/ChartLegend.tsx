@@ -7,28 +7,27 @@ type Props = {
 };
 
 export const ChartLegend: React.FC<Props> = ({ currentValue }) => {
+  const color = getGlucoseColor(currentValue || 100);
   const legendItems = [
     {
       label: "Actual",
-      style: { backgroundColor: getGlucoseColor(currentValue || 100) },
+      isArea: false,
+      style: { backgroundColor: color },
     },
     {
-      label: "Standard Projection",
+      label: "Projection",
+      isArea: false,
       style: {
-        backgroundColor: getGlucoseColor(currentValue || 100),
-        opacity: 0.7,
-        backgroundImage:
-          "repeating-linear-gradient(to right, transparent, transparent 4px, white 4px, white 6px)",
-      },
-    },
-    {
-      label: "Time-aware Projection",
-      style: {
-        backgroundColor: getGlucoseColor(currentValue || 100),
-        opacity: 0.5,
+        backgroundColor: color,
+        opacity: 0.8,
         backgroundImage:
           "repeating-linear-gradient(to right, transparent, transparent 2px, white 2px, white 4px)",
       },
+    },
+    {
+      label: "Uncertainty",
+      isArea: true,
+      style: { backgroundColor: color, opacity: 0.15 },
     },
   ];
 
@@ -57,7 +56,14 @@ export const ChartLegend: React.FC<Props> = ({ currentValue }) => {
             justifyContent: "center",
           }}
         >
-          <div style={{ width: "16px", height: "2px", ...item.style }}></div>
+          <div
+            style={{
+              width: "16px",
+              height: item.isArea ? "8px" : "2px",
+              borderRadius: item.isArea ? "2px" : undefined,
+              ...item.style,
+            }}
+          ></div>
           <span>{item.label}</span>
         </div>
       ))}
