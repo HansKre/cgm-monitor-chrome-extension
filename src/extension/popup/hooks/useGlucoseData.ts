@@ -10,7 +10,7 @@ export type StoredGlucoseData = {
   isStale: boolean;
 };
 
-export const useGlucoseData = (currentTab: string) => {
+export const useGlucoseData = (currentTab: string | null) => {
   const [glucoseData, setGlucoseData] = useState<StoredGlucoseData>({
     isStale: false,
   });
@@ -90,6 +90,12 @@ export const useGlucoseData = (currentTab: string) => {
   };
 
   useEffect(() => {
+    if (currentTab !== "graph") {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
     loadGlucoseData();
 
     // Auto-refresh every minute

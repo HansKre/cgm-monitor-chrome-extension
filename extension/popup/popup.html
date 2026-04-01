@@ -180,6 +180,13 @@
         width: 100%;
       }
 
+      .btn-content {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+
       .btn:hover {
         background: var(--interactive-primary-hover);
       }
@@ -187,6 +194,25 @@
       .btn:disabled {
         background: var(--interactive-disabled);
         cursor: not-allowed;
+      }
+
+      .button-spinner {
+        width: 14px;
+        height: 14px;
+        border: 2px solid rgba(255, 255, 255, 0.35);
+        border-top-color: white;
+        border-radius: 50%;
+        animation: button-spin 0.7s linear infinite;
+      }
+
+      @keyframes button-spin {
+        from {
+          transform: rotate(0deg);
+        }
+
+        to {
+          transform: rotate(360deg);
+        }
       }
 
       .success-message {

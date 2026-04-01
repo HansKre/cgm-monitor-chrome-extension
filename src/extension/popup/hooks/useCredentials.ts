@@ -10,6 +10,9 @@ export const useCredentials = () => {
     email: "",
     password: "",
   });
+  const [credentialsLoaded, setCredentialsLoaded] = useState(false);
+  const [hasStoredCredentials, setHasStoredCredentials] = useState(false);
+  const [isSavingCredentials, setIsSavingCredentials] = useState(false);
   const [saveMessage, setSaveMessage] = useState<{
     text: string;
     type: "success" | "error";
@@ -35,14 +38,23 @@ export const useCredentials = () => {
       const result = await chrome.storage.sync.get(["credentials"]);
       const storedCredentials = (result.credentials ||
         {}) as Partial<Credentials>;
+      setHasStoredCredentials(
+        Boolean(storedCredentials.email && storedCredentials.password),
+      );
       setCredentials({ email: storedCredentials.email ?? "", password: "" });
     } catch (err) {
       console.error("Failed to load credentials:", err);
+    } finally {
+      setCredentialsLoaded(true);
     }
   };
 
   const saveCredentials = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSavingCredentials) {
+      return;
+    }
+
     if (!credentials.email || !credentials.password) {
       setSaveMessage({
         text: "Please fill in both email and password.",
@@ -51,6 +63,9 @@ export const useCredentials = () => {
       return;
     }
 
+    setIsSavingCredentials(true);
+    setSaveMessage(null);
+
     try {
       const response = await sendMessage({
         type: "UPDATE_CREDENTIALS",
@@ -58,6 +73,7 @@ export const useCredentials = () => {
       });
 
       if (response.success) {
+        setHasStoredCredentials(true);
         setSaveMessage({
           text: "Credentials saved successfully! Glucose data will update automatically.",
           type: "success",
@@ -74,6 +90,8 @@ export const useCredentials = () => {
         text: "Failed to save credentials. Please try again.",
         type: "error",
       });
+    } finally {
+      setIsSavingCredentials(false);
     }
 
     setTimeout(() => setSaveMessage(null), 5000);
@@ -83,6 +101,7 @@ export const useCredentials = () => {
     try {
       const response = await sendMessage({ type: "DELETE_CREDENTIALS" });
       if (response.success) {
+        setHasStoredCredentials(false);
         setCredentials({ email: "", password: "" });
         setSaveMessage({ text: "Credentials deleted.", type: "success" });
       } else {
@@ -106,6 +125,9 @@ export const useCredentials = () => {
 
   return {
     credentials,
+    credentialsLoaded,
+    hasStoredCredentials,
+    isSavingCredentials,
     setCredentials,
     saveCredentials,
     deleteCredentials,

@@ -1,6 +1,6 @@
 # CGM Glucose Monitor Chrome Extension
 
-**CGM Glucose Monitor** – A Chrome extension for CGM users that provides real-time blood glucose monitoring with interactive visualizations and intelligent trend analysis directly in your browser. [Install it from the Chrome Web Store](https://chromewebstore.google.com/detail/libreview-glucose-monitor/emfglagmlmkbmoacmidocogloijnkmma).
+**CGM Glucose Monitor** – A Chrome extension for CGM users that provides real-time blood glucose monitoring with interactive visualizations and intelligent trend analysis directly in your browser. [Install it from the Chrome Web Store](https://chromewebstore.google.com/detail/cgm-glucose-monitor/nghmneelpfkkcbocodchphejoljeloko).
 
 ---
 
