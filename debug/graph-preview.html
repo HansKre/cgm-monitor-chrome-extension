@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CGM Graph Preview</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #151515;
+        --panel: #1e1e1e;
+        --grid: #4a4a4a;
+        --text: #f5f5f5;
+        --muted: #b4b4b4;
+        --actual: #ff9800;
+        --projection: #ffb84d;
+        --broken: #6ec1ff;
+        --fixed: #8bc34a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: 24px;
+        background: radial-gradient(circle at top, #262626 0%, var(--bg) 50%);
+        color: var(--text);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      }
+
+      main {
+        max-width: 1280px;
+        margin: 0 auto;
+        display: grid;
+        gap: 20px;
+      }
+
+      .panel {
+        background: rgba(30, 30, 30, 0.92);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 16px;
+        padding: 16px;
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.24);
+      }
+
+      h1, h2 {
+        margin: 0 0 12px;
+        font-weight: 700;
+      }
+
+      p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .meta {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+      }
+
+      .meta-card {
+        background: rgba(255, 255, 255, 0.04);
+        border-radius: 12px;
+        padding: 12px;
+      }
+
+      .meta-card strong {
+        display: block;
+        margin-bottom: 6px;
+        color: var(--text);
+      }
+
+      .chart-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+
+      .chart-wrap {
+        display: grid;
+        gap: 8px;
+      }
+
+      svg {
+        width: 100%;
+        height: auto;
+        background: #191919;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .legend span::before {
+        content: "";
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        margin-right: 8px;
+        vertical-align: middle;
+      }
+
+      .legend .actual::before {
+        background: var(--actual);
+      }
+
+      .legend .projection::before {
+        background: var(--projection);
+      }
+
+      .legend .broken::before {
+        background: var(--broken);
+      }
+
+      .legend .fixed::before {
+        background: var(--fixed);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+
+      th, td {
+        padding: 8px 10px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        text-align: left;
+      }
+
+      th {
+        color: var(--text);
+      }
+
+      td {
+        color: var(--muted);
+      }
+
+      .callout {
+        color: #ffd166;
+      }
+
+      @media (max-width: 900px) {
+        body {
+          padding: 12px;
+        }
+
+        .chart-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="panel" data-testid="preview-summary">
+        <h1>CGM Graph Preview</h1>
+        <p>
+          This page renders the sanitized payload with two variants of the final live point:
+          a simulated delayed fetch-time append, and a corrected variant that uses the API
+          measurement timestamp instead.
+        </p>
+      </section>
+
+      <section class="panel meta" id="meta" data-testid="preview-meta"></section>
+
+      <section class="panel chart-grid" data-testid="preview-charts">
+        <div class="chart-wrap">
+          <h2>Current Behavior</h2>
+          <p class="callout">Live reading appended 20 minutes after the API measurement time to make the fetch-time artifact explicit.</p>
+          <div class="legend">
+            <span class="actual">Historical values</span>
+            <span class="broken">Appended live value</span>
+            <span class="projection">Projection</span>
+          </div>
+          <svg id="broken-chart" viewBox="0 0 620 320" data-testid="broken-chart"></svg>
+        </div>
+        <div class="chart-wrap">
+          <h2>Corrected Behavior</h2>
+          <p>Live reading appended at the timestamp supplied by the API measurement itself.</p>
+          <div class="legend">
+            <span class="actual">Historical values</span>
+            <span class="fixed">Appended live value</span>
+            <span class="projection">Projection</span>
+          </div>
+          <svg id="fixed-chart" viewBox="0 0 620 320" data-testid="fixed-chart"></svg>
+        </div>
+      </section>
+
+      <section class="panel" data-testid="preview-table-panel">
+        <h2>Final Processed Points</h2>
+        <p>The last six actual points are shown for each variant so the timestamp jump is explicit.</p>
+        <div id="tables"></div>
+      </section>
+    </main>
+    <script type="module" src="/graph-preview.js"></script>
+  </body>
+  </html>

@@ -4,6 +4,7 @@ import { ThemeToggle } from "./ThemeToggle";
 
 type Props = {
   credentials: { email: string; password: string };
+  isSavingCredentials: boolean;
   setCredentials: (credentials: { email: string; password: string }) => void;
   onSubmit: (e: React.FormEvent) => void;
   onDelete: () => void;
@@ -12,6 +13,7 @@ type Props = {
 
 export const SettingsForm: React.FC<Props> = ({
   credentials,
+  isSavingCredentials,
   setCredentials,
   onSubmit,
   onDelete,
@@ -53,7 +55,7 @@ export const SettingsForm: React.FC<Props> = ({
         Chrome's local storage.
       </div>
 
-      <form onSubmit={onSubmit}>
+      <form data-testid="credentials-form" onSubmit={onSubmit}>
         <div className="form-group">
           <label htmlFor="email">Email:</label>
           <input
@@ -82,15 +84,31 @@ export const SettingsForm: React.FC<Props> = ({
           />
         </div>
 
-        <button type="submit" className="btn">
-          Save Credentials
+        <button
+          data-testid="save-credentials-button"
+          type="submit"
+          className="btn"
+          disabled={isSavingCredentials}
+        >
+          <span className="btn-content">
+            {isSavingCredentials && (
+              <span className="button-spinner" aria-hidden="true" />
+            )}
+            <span>
+              {isSavingCredentials
+                ? "Validating credentials..."
+                : "Save Credentials"}
+            </span>
+          </span>
         </button>
 
         <button
+          data-testid="delete-credentials-button"
           type="button"
           className="btn"
           style={{ marginTop: "8px", background: "#c0392b" }}
           onClick={onDelete}
+          disabled={isSavingCredentials}
         >
           Delete Credentials
         </button>

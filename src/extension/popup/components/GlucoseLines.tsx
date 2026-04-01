@@ -1,7 +1,6 @@
 import React from "react";
 import { Area, Line } from "recharts";
 import type { GlucoseData } from "../../../types";
-import { ANIMATION_CONFIG } from "../config/glucoseConfig";
 import { getGlucoseColor } from "../utils/glucoseUtils";
 
 type Props = {
@@ -17,19 +16,18 @@ export const GlucoseLines: React.FC<Props> = ({ data, currentValue }) => {
     <>
       {/* Uncertainty band: single range Area using [lower, upper] pair */}
       <Area
-        type="monotone"
+        type="linear"
         dataKey="projectionBand"
         fill={strokeColor}
         fillOpacity={0.35}
         stroke="none"
         connectNulls={true}
-        animationBegin={ANIMATION_CONFIG.projectedLines.begin}
-        animationDuration={ANIMATION_CONFIG.projectedLines.duration}
+        isAnimationActive={false}
       />
 
       {/* Time-aware projection line (renders on top of band) */}
       <Line
-        type="monotone"
+        type="linear"
         dataKey="timeAwareProjectedValue"
         stroke={strokeColor}
         strokeWidth={2}
@@ -44,13 +42,12 @@ export const GlucoseLines: React.FC<Props> = ({ data, currentValue }) => {
           strokeOpacity: 0.8,
         }}
         connectNulls={true}
-        animationBegin={ANIMATION_CONFIG.projectedLines.begin}
-        animationDuration={ANIMATION_CONFIG.projectedLines.duration}
+        isAnimationActive={false}
       />
 
       {/* Actual glucose data line */}
       <Line
-        type="monotone"
+        type="linear"
         dataKey="value"
         stroke={strokeColor}
         strokeWidth={3}
@@ -62,8 +59,7 @@ export const GlucoseLines: React.FC<Props> = ({ data, currentValue }) => {
           strokeWidth: 2,
         }}
         connectNulls={false}
-        animationBegin={ANIMATION_CONFIG.actualLine.begin}
-        animationDuration={ANIMATION_CONFIG.actualLine.duration}
+        isAnimationActive={false}
       />
     </>
   );

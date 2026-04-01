@@ -38,7 +38,7 @@ export type GraphResponse = {
   data?: {
     graphData?: GlucoseData[];
     connection?: {
-      glucoseMeasurement?: { Value?: number };
+      glucoseMeasurement?: GlucoseData;
     };
   };
 };

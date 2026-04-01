@@ -24,6 +24,13 @@ export type ProjectionPoint = {
   isProjected: true;
 };
 
+const sortDataByTimestamp = (data: GlucoseData[]): GlucoseData[] => {
+  return [...data].sort(
+    (left, right) =>
+      new Date(left.Timestamp).getTime() - new Date(right.Timestamp).getTime(),
+  );
+};
+
 // Calculate average time interval between historic data points
 const calculateDataInterval = (data: GlucoseData[]): number => {
   if (data.length < 2) return 5 * 60 * 1000; // Default to 5 minutes
@@ -47,12 +54,16 @@ export const calculateProjection = (
   data: GlucoseData[],
   minutesAhead: number = 60,
 ): ProjectionPoint[] => {
-  if (data.length < 3) return [];
+  const sortedData = sortDataByTimestamp(data);
+
+  if (sortedData.length < 3) return [];
 
   // Use last 30 minutes of data for trend analysis
-  const now = new Date().getTime();
-  const thirtyMinutesAgo = now - 30 * 60 * 1000;
-  const recentData = data.filter(
+  const latestTimestamp = new Date(
+    sortedData[sortedData.length - 1].Timestamp,
+  ).getTime();
+  const thirtyMinutesAgo = latestTimestamp - 30 * 60 * 1000;
+  const recentData = sortedData.filter(
     (item) => new Date(item.Timestamp).getTime() >= thirtyMinutesAgo,
   );
 
@@ -77,7 +88,7 @@ export const calculateProjection = (
 
   // Generate projection points
   const projectionPoints: ProjectionPoint[] = [];
-  const lastTimestamp = new Date(data[data.length - 1].Timestamp).getTime();
+  const lastTimestamp = latestTimestamp;
   const projectionInterval = 5 * 60 * 1000; // 5 minute intervals
   const projectionCount = minutesAhead / 5;
 
@@ -104,16 +115,20 @@ export const calculateTimeAwareProjection = (
   data: GlucoseData[],
   minutesAhead: number = 60,
 ): ProjectionPoint[] => {
-  if (data.length < 3) return [];
+  const sortedData = sortDataByTimestamp(data);
+
+  if (sortedData.length < 3) return [];
 
   // Calculate the actual time interval between data points
-  const dataInterval = calculateDataInterval(data);
+  const dataInterval = calculateDataInterval(sortedData);
 
   // Use recent data based on data frequency (adjust analysis window)
   const analysisWindowMs = Math.max(30 * 60 * 1000, dataInterval * 6); // At least 6 data points or 30 minutes
-  const now = new Date().getTime();
-  const analysisStartTime = now - analysisWindowMs;
-  const recentData = data.filter(
+  const latestTimestamp = new Date(
+    sortedData[sortedData.length - 1].Timestamp,
+  ).getTime();
+  const analysisStartTime = latestTimestamp - analysisWindowMs;
+  const recentData = sortedData.filter(
     (item) => new Date(item.Timestamp).getTime() >= analysisStartTime,
   );
 
@@ -144,7 +159,7 @@ export const calculateTimeAwareProjection = (
 
   // Generate projection points respecting the historic data interval
   const projectionPoints: ProjectionPoint[] = [];
-  const lastTimestamp = new Date(data[data.length - 1].Timestamp).getTime();
+  const lastTimestamp = latestTimestamp;
 
   // Use the calculated data interval for projections, but cap it at reasonable limits
   const projectionInterval = Math.min(
@@ -230,13 +245,15 @@ const fillDataGaps = (
 };
 
 export const formatChartData = (data: GlucoseData[]): ChartDataPoint[] => {
-  if (data.length === 0) return [];
+  const sortedData = sortDataByTimestamp(data);
+
+  if (sortedData.length === 0) return [];
 
   // Fill gaps in the data to show disconnections
-  const gapFilledData = fillDataGaps(data, 15);
+  const gapFilledData = fillDataGaps(sortedData, 15);
 
   // Find the last actual data point timestamp for projection connection
-  const lastActualTimestamp = data[data.length - 1].Timestamp;
+  const lastActualTimestamp = sortedData[sortedData.length - 1].Timestamp;
 
   // Map actual data, but make the last point have both actual and projected values for smooth connection
   const actualData: ChartDataPoint[] = gapFilledData.map((item) => {
@@ -264,7 +281,7 @@ export const formatChartData = (data: GlucoseData[]): ChartDataPoint[] => {
   });
 
   // Generate time-aware projection data
-  const timeAwareProjections = calculateTimeAwareProjection(data);
+  const timeAwareProjections = calculateTimeAwareProjection(sortedData);
 
   const combinedProjections: ChartDataPoint[] = timeAwareProjections.map(
     (proj, i) => {

@@ -207,6 +207,7 @@ class LibreViewAPI {
   async fetchGlucoseData(): Promise<{
     data: GlucoseData[];
     currentMeasurementValue?: number;
+    currentMeasurement?: GlucoseData;
   }> {
     if (!this.auth) {
       await this.authenticate();
@@ -262,12 +263,14 @@ class LibreViewAPI {
       );
     }
 
-    const currentMeasurementValue =
-      graphResponse?.data?.connection?.glucoseMeasurement?.Value;
+    const currentMeasurement =
+      graphResponse?.data?.connection?.glucoseMeasurement;
+    const currentMeasurementValue = currentMeasurement?.Value;
 
     return {
       data: graphResponse?.data?.graphData || [],
       currentMeasurementValue,
+      currentMeasurement,
     };
   }
 }
@@ -408,42 +411,42 @@ class BackgroundService {
 
         // Ensure graph data includes the current measurement if it's newer
         const processedData = [...result.data];
-        if (result.currentMeasurementValue && processedData.length > 0) {
+        if (result.currentMeasurement && processedData.length > 0) {
           const lastDataPoint = processedData[processedData.length - 1];
-          const currentTime = new Date();
           const lastDataTime = new Date(lastDataPoint.Timestamp);
+          const measurementTime = new Date(result.currentMeasurement.Timestamp);
 
           // If current measurement is different from the last graph point,
           // add it as a new data point (don't overwrite historical data)
-          if (lastDataPoint.Value !== result.currentMeasurementValue) {
-            // Add current measurement as a new data point if it's reasonably newer
+          if (lastDataPoint.Value !== result.currentMeasurement.Value) {
+            // Add current measurement as a new data point if it is newer than the
+            // last graph point by at least a minute. Use the API measurement
+            // timestamp, not the local fetch time, so the chart reflects when the
+            // reading actually happened.
             const timeDifferenceMinutes =
-              (currentTime.getTime() - lastDataTime.getTime()) / (1000 * 60);
+              (measurementTime.getTime() - lastDataTime.getTime()) /
+              (1000 * 60);
 
             if (timeDifferenceMinutes >= 1) {
-              // Add new data point for current measurement
               const newDataPoint: GlucoseData = {
-                ...lastDataPoint, // Copy all properties from last data point
-                Value: result.currentMeasurementValue,
-                ValueInMgPerDl: result.currentMeasurementValue,
-                Timestamp: currentTime.toISOString(),
-                FactoryTimestamp: currentTime.toISOString(),
+                ...lastDataPoint,
+                ...result.currentMeasurement,
               };
               processedData.push(newDataPoint);
               console.log(
-                `📊 Added current measurement as new data point: ${result.currentMeasurementValue} mg/dL at ${currentTime.toLocaleTimeString()}`,
+                `📊 Added current measurement as new data point: ${result.currentMeasurement.Value} mg/dL at ${measurementTime.toLocaleTimeString()}`,
               );
-            } else {
-              // If time difference is small, update the last point to avoid clustering
+            } else if (timeDifferenceMinutes >= -1) {
               processedData[processedData.length - 1] = {
                 ...lastDataPoint,
-                Value: result.currentMeasurementValue,
-                ValueInMgPerDl: result.currentMeasurementValue,
-                Timestamp: currentTime.toISOString(),
-                FactoryTimestamp: currentTime.toISOString(),
+                ...result.currentMeasurement,
               };
               console.log(
-                `📊 Updated last data point with current measurement: ${result.currentMeasurementValue} mg/dL`,
+                `📊 Updated last data point with current measurement timestamp: ${result.currentMeasurement.Value} mg/dL at ${measurementTime.toLocaleTimeString()}`,
+              );
+            } else {
+              console.log(
+                `📊 Ignored stale current measurement ${result.currentMeasurement.Value} mg/dL at ${measurementTime.toLocaleTimeString()} because graph data is newer`,
               );
             }
           }
