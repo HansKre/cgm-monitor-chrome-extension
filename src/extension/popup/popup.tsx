@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { GlucoseChart } from "./components/GlucoseChart";
 import { GlucoseStatus } from "./components/GlucoseStatus";
@@ -7,20 +7,37 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { useCredentials } from "./hooks/useCredentials";
 import { useGlucoseData } from "./hooks/useGlucoseData";
 
+type PopupTab = "graph" | "settings";
+
 const PopupApp: React.FC = () => {
-  const [currentTab, setCurrentTab] = useState("graph");
+  const [currentTab, setCurrentTab] = useState<PopupTab | null>(null);
   const [graphRenderKey, setGraphRenderKey] = useState(0);
   const { glucoseData, loading, error, forceUpdate } =
     useGlucoseData(currentTab);
   const {
     credentials,
+    credentialsLoaded,
+    hasStoredCredentials,
+    isSavingCredentials,
     setCredentials,
     saveCredentials,
     deleteCredentials,
     saveMessage,
   } = useCredentials();
 
+  useEffect(() => {
+    if (!credentialsLoaded || currentTab !== null) {
+      return;
+    }
+
+    setCurrentTab(hasStoredCredentials ? "graph" : "settings");
+  }, [credentialsLoaded, currentTab, hasStoredCredentials]);
+
   const handleGraphTabClick = () => {
+    if (currentTab === null) {
+      return;
+    }
+
     if (currentTab === "graph") {
       // re-render content of graph-tab
       // so that animations are shown again
@@ -50,6 +67,7 @@ const PopupApp: React.FC = () => {
           data-testid="tab-graph"
           className={`tab ${currentTab === "graph" ? "active" : ""}`}
           onClick={handleGraphTabClick}
+          disabled={!credentialsLoaded}
         >
           Graph
         </button>
@@ -57,12 +75,17 @@ const PopupApp: React.FC = () => {
           data-testid="tab-settings"
           className={`tab ${currentTab === "settings" ? "active" : ""}`}
           onClick={() => setCurrentTab("settings")}
+          disabled={!credentialsLoaded}
         >
           Settings
         </button>
       </div>
 
       <div data-testid="tab-content" className="tab-content">
+        {!credentialsLoaded && (
+          <div className="loading">Loading settings...</div>
+        )}
+
         {currentTab === "graph" && (
           <div key={graphRenderKey} className="tab-pane active">
             <GlucoseStatus
@@ -86,6 +109,7 @@ const PopupApp: React.FC = () => {
         {currentTab === "settings" && (
           <SettingsForm
             credentials={credentials}
+            isSavingCredentials={isSavingCredentials}
             setCredentials={setCredentials}
             onSubmit={saveCredentials}
             onDelete={deleteCredentials}
