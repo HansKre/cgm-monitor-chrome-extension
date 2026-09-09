@@ -11,6 +11,7 @@ type Props = {
   onRefresh: () => void;
   isStale?: boolean;
   lastError?: string;
+  isAutoHealing?: boolean;
 };
 
 export const GlucoseStatus: React.FC<Props> = ({
@@ -20,6 +21,7 @@ export const GlucoseStatus: React.FC<Props> = ({
   onRefresh,
   isStale = false,
   lastError,
+  isAutoHealing = false,
 }) => {
   return (
     <div
@@ -45,7 +47,11 @@ export const GlucoseStatus: React.FC<Props> = ({
           }}
         >
           <AnimatedGlucoseValue value={value} isStale={isStale} />
-          <LastUpdatedInfo lastUpdate={lastUpdate} />
+          <LastUpdatedInfo
+            lastUpdate={lastUpdate}
+            isStale={isStale}
+            isAutoHealing={isAutoHealing}
+          />
         </div>
         <RefreshButton loading={loading} onRefresh={onRefresh} />
       </div>

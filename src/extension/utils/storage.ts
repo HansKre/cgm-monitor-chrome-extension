@@ -16,6 +16,8 @@ export type StoredData = {
   apiMinimumVersion?: string;
 };
 
+export const STALE_THRESHOLD_MS = 6 * 60 * 1000; // 6 minutes (sensor uploads every ~5 minutes)
+
 export class ChromeStorage {
   static async get<T extends keyof StoredData>(
     keys: T[],
@@ -81,8 +83,8 @@ export class ChromeStorage {
       "lastErrorTime",
     ]);
     const now = Date.now();
-    const fiveMinutesAgo = now - 5 * 60 * 1000; // 5 minutes in milliseconds
-    const isStale = !result.lastUpdate || result.lastUpdate < fiveMinutesAgo;
+    const isStale =
+      !result.lastUpdate || now - result.lastUpdate > STALE_THRESHOLD_MS;
 
     return {
       value: result.lastGlucoseValue,
