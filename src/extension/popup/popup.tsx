@@ -12,7 +12,7 @@ type PopupTab = "graph" | "settings";
 const PopupApp: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<PopupTab | null>(null);
   const [graphRenderKey, setGraphRenderKey] = useState(0);
-  const { glucoseData, loading, error, forceUpdate } =
+  const { glucoseData, loading, isAutoHealing, error, forceUpdate } =
     useGlucoseData(currentTab);
   const {
     credentials,
@@ -95,6 +95,7 @@ const PopupApp: React.FC = () => {
               onRefresh={forceUpdate}
               isStale={glucoseData.isStale}
               lastError={glucoseData.lastError}
+              isAutoHealing={isAutoHealing}
             />
 
             <GlucoseChart

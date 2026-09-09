@@ -240,9 +240,14 @@ class LibreViewAPI {
         return this.fetchGlucoseData();
       }
 
-      // Try to re-authenticate once on failure
-      if (axios.isAxiosError(error) && error.response?.status === 401) {
-        console.log("🔑 401 Unauthorized - Attempting re-authentication...");
+      // Try to re-authenticate once on failure (both 401 Unauthorized and 403 Forbidden)
+      if (
+        axios.isAxiosError(error) &&
+        (error.response?.status === 401 || error.response?.status === 403)
+      ) {
+        console.log(
+          `🔑 HTTP ${error.response.status} (${error.response.statusText || "Auth failure"}) - Attempting re-authentication...`,
+        );
         this.auth = null;
         await this.authenticate();
         return this.fetchGlucoseData();
@@ -273,14 +278,22 @@ class LibreViewAPI {
       currentMeasurement,
     };
   }
+
+  resetAuth(): void {
+    console.log("🔄 Resetting LibreViewAPI auth cache...");
+    this.auth = null;
+  }
 }
 
 class BackgroundService {
   private api = new LibreViewAPI();
   private lastUpdateTime = 0;
+  private consecutiveFailures = 0;
   private readonly MIN_UPDATE_INTERVAL_MS = 55000; // Minimum 55 seconds between updates
   private readonly DATA_UPDATE_INTERVAL_MS = 5 * 60 * 1000; // CGM cloud sync updates every 5 minutes
+  private readonly BACKOFF_DELAYS_MS = [30000, 60000, 120000, 300000]; // 30s, 1m, 2m, 5m
   readonly ALARM_NAME = "glucoseUpdate";
+  readonly WATCHDOG_ALARM_NAME = "glucoseWatchdog";
 
   async initialize() {
     console.log("CGM Extension Background Service Starting...");
@@ -302,7 +315,7 @@ class BackgroundService {
         );
       }
 
-      // Start periodic updates
+      // Start periodic updates and persistent watchdog
       this.startPeriodicUpdates();
       // Initial update (respecting rate limiting)
       await this.updateGlucoseData();
@@ -318,67 +331,107 @@ class BackgroundService {
   }
 
   private startPeriodicUpdates() {
-    // Clear any existing alarm
+    // Clear any existing primary alarm
     chrome.alarms.clear(this.ALARM_NAME);
 
-    // Initial fetch happens immediately in initialize()
-    // We'll schedule the next alarm after receiving data
-    console.log(
-      "Periodic updates will be scheduled dynamically based on data timestamps",
-    );
+    // Create a persistent recurring watchdog alarm (every 2 minutes)
+    // In Manifest V3, periodInMinutes alarms survive service worker shutdowns
+    chrome.alarms.create(this.WATCHDOG_ALARM_NAME, {
+      periodInMinutes: 2,
+    });
+
+    console.log("Periodic updates and watchdog alarm (every 2m) initiated");
   }
 
-  private scheduleNextUpdate(lastDataTimestamp: string) {
-    // Parse the last data timestamp
-    const lastUpdate = new Date(lastDataTimestamp);
-    const now = new Date();
-
-    // Calculate when the next data point should be available (5 minutes after last timestamp)
-    const nextDataAvailable = new Date(
-      lastUpdate.getTime() + this.DATA_UPDATE_INTERVAL_MS,
+  private scheduleRetry() {
+    this.consecutiveFailures++;
+    const delayIndex = Math.min(
+      this.consecutiveFailures - 1,
+      this.BACKOFF_DELAYS_MS.length - 1,
     );
-
-    // Add a small buffer (10 seconds) to ensure data is available
-    const nextFetchTime = new Date(nextDataAvailable.getTime() + 10000);
-
-    // Calculate delay in minutes
-    let delayMs = nextFetchTime.getTime() - now.getTime();
-
-    // If the calculated time is in the past or very soon, fetch in 1 minute
-    if (delayMs < 60000) {
-      delayMs = 60000;
-    }
-
+    const delayMs = this.BACKOFF_DELAYS_MS[delayIndex];
     const delayMinutes = delayMs / 60000;
 
-    // Clear any existing alarm and create new one
     chrome.alarms.clear(this.ALARM_NAME);
     chrome.alarms.create(this.ALARM_NAME, {
       delayInMinutes: delayMinutes,
     });
 
     console.log(
-      `📅 Next glucose update scheduled in ${delayMinutes.toFixed(1)} minutes at ${nextFetchTime.toLocaleTimeString()} (last data: ${lastUpdate.toLocaleTimeString()})`,
+      `⚠️ Failure #${this.consecutiveFailures}. Scheduled retry in ${Math.round(delayMs / 1000)}s (${delayMinutes.toFixed(2)} min)`,
     );
   }
 
-  async updateGlucoseData() {
+  private scheduleNextUpdate(lastDataTimestamp?: string) {
+    if (lastDataTimestamp) {
+      const lastUpdate = new Date(lastDataTimestamp);
+      const now = new Date();
+
+      if (!isNaN(lastUpdate.getTime())) {
+        // Calculate when the next data point should be available (5 minutes after last timestamp)
+        const nextDataAvailable = new Date(
+          lastUpdate.getTime() + this.DATA_UPDATE_INTERVAL_MS,
+        );
+
+        // Add a small buffer (10 seconds) to ensure data is available
+        const nextFetchTime = new Date(nextDataAvailable.getTime() + 10000);
+
+        // Calculate delay in minutes
+        let delayMs = nextFetchTime.getTime() - now.getTime();
+
+        // If the calculated time is in the past or very soon, fetch in 1 minute
+        if (delayMs < 60000) {
+          delayMs = 60000;
+        }
+
+        const delayMinutes = delayMs / 60000;
+
+        // Clear any existing alarm and create new one
+        chrome.alarms.clear(this.ALARM_NAME);
+        chrome.alarms.create(this.ALARM_NAME, {
+          delayInMinutes: delayMinutes,
+        });
+
+        console.log(
+          `📅 Next glucose update scheduled in ${delayMinutes.toFixed(1)} minutes at ${nextFetchTime.toLocaleTimeString()} (last data: ${lastUpdate.toLocaleTimeString()})`,
+        );
+        return;
+      }
+    }
+
+    // Default fallback if no timestamp or invalid date
+    chrome.alarms.clear(this.ALARM_NAME);
+    chrome.alarms.create(this.ALARM_NAME, {
+      delayInMinutes: 1,
+    });
+    console.log("📅 Scheduled fallback update in 1 minute");
+  }
+
+  async updateGlucoseData(bypassRateLimit: boolean = false) {
     try {
       // Rate limiting: Check if enough time has passed since last update
       const now = Date.now();
       const timeSinceLastUpdate = now - this.lastUpdateTime;
 
       if (
+        !bypassRateLimit &&
         this.lastUpdateTime > 0 &&
         timeSinceLastUpdate < this.MIN_UPDATE_INTERVAL_MS
       ) {
+        const remainingMs = this.MIN_UPDATE_INTERVAL_MS - timeSinceLastUpdate;
         console.log(
           `⏸️ Rate limiting: Only ${Math.round(
             timeSinceLastUpdate / 1000,
           )}s since last update, minimum ${
             this.MIN_UPDATE_INTERVAL_MS / 1000
-          }s required`,
+          }s required. Rescheduling for remaining ${Math.round(remainingMs / 1000)}s...`,
         );
+        // Reschedule alarm for remaining time instead of dropping it
+        const delayMinutes = Math.max(remainingMs + 1000, 5000) / 60000;
+        chrome.alarms.clear(this.ALARM_NAME);
+        chrome.alarms.create(this.ALARM_NAME, {
+          delayInMinutes: delayMinutes,
+        });
         return;
       }
 
@@ -458,8 +511,9 @@ class BackgroundService {
         // Update icon (data is fresh, so not stale)
         await IconGenerator.updateBrowserIcon(latestValue, false);
 
-        // Update last fetch time
+        // Update last fetch time and reset failures
         this.lastUpdateTime = now;
+        this.consecutiveFailures = 0;
 
         console.log(
           `✓ Updated glucose value: ${latestValue} mg/dL at ${new Date().toLocaleTimeString()}${result.currentMeasurementValue ? " (from current measurement)" : " (from graph data)"}`,
@@ -469,7 +523,10 @@ class BackgroundService {
         const latestDataPoint = processedData[processedData.length - 1];
         this.scheduleNextUpdate(latestDataPoint.Timestamp);
       } else {
-        console.log("No glucose data received from API");
+        console.log(
+          "No glucose data received from API. Scheduling retry with backoff...",
+        );
+        this.scheduleRetry();
       }
     } catch (error) {
       // Enhanced error logging with detailed context
@@ -523,6 +580,11 @@ class BackgroundService {
         console.error(`❌ Failed to update glucose data: ${errorMessage}`);
       }
 
+      // If we experienced repeated failures, clear auth cache to force a fresh login on next attempt
+      if (this.consecutiveFailures >= 2) {
+        this.api.resetAuth();
+      }
+
       // Store the error for display in popup
       const fullErrorMessage = errorDetails
         ? `${errorMessage} (${errorDetails})`
@@ -538,19 +600,12 @@ class BackgroundService {
 
         // Update icon with stale indicator
         await IconGenerator.updateBrowserIcon(existingData.value, true);
-
-        // If we have existing data with timestamps, schedule next update based on last timestamp
-        if (existingData.data && existingData.data.length > 0) {
-          const latestDataPoint =
-            existingData.data[existingData.data.length - 1];
-          this.scheduleNextUpdate(latestDataPoint.Timestamp);
-          console.log(
-            "  Next retry will be scheduled based on last data timestamp",
-          );
-        }
       } else {
         console.log("  ⚠️ No cached glucose data available");
       }
+
+      // Schedule retry with exponential backoff
+      this.scheduleRetry();
 
       // Update icon to show error state
       if (chrome.action && chrome.action.setTitle) {
@@ -558,6 +613,35 @@ class BackgroundService {
           title: `CGM Glucose Monitor - Error: ${errorMessage}`,
         });
       }
+    }
+  }
+
+  async handleWatchdog() {
+    console.log(
+      "🐕 Watchdog heartbeat check at",
+      new Date().toLocaleTimeString(),
+    );
+    const credentials = await ChromeStorage.getCredentials();
+    if (!credentials.email || !credentials.password) {
+      return;
+    }
+
+    const existingData = await ChromeStorage.getGlucoseData();
+    const primaryAlarm = await chrome.alarms.get(this.ALARM_NAME);
+
+    // If data is stale OR the primary alarm is missing completely, initiate self-healing
+    if (existingData.isStale || !primaryAlarm) {
+      console.log(
+        `🐕 Watchdog detected need for self-healing (isStale=${existingData.isStale}, primaryAlarmExists=${!!primaryAlarm}). Triggering self-heal update...`,
+      );
+      if (this.consecutiveFailures >= 2) {
+        this.api.resetAuth();
+      }
+      await this.updateGlucoseData(false);
+    } else {
+      console.log(
+        "🐕 Watchdog check healthy: data is fresh and primary alarm is active",
+      );
     }
   }
 
@@ -600,7 +684,7 @@ class BackgroundService {
           this.startPeriodicUpdates();
 
           // Trigger immediate update
-          await this.updateGlucoseData();
+          await this.updateGlucoseData(true);
           sendResponse({ success: true });
         } catch (error) {
           sendResponse({ success: false, error: (error as Error).message });
@@ -612,6 +696,7 @@ class BackgroundService {
           await ChromeStorage.setCredentials({});
           this.api = new LibreViewAPI();
           chrome.alarms.clear(this.ALARM_NAME);
+          chrome.alarms.clear(this.WATCHDOG_ALARM_NAME);
           sendResponse({ success: true });
         } catch (error) {
           sendResponse({ success: false, error: (error as Error).message });
@@ -621,7 +706,7 @@ class BackgroundService {
       case "FORCE_UPDATE":
         try {
           console.log("Force update requested from popup");
-          await this.updateGlucoseData();
+          await this.updateGlucoseData(true);
           const data = await ChromeStorage.getGlucoseData();
           sendResponse({ success: true, data });
         } catch (error) {
@@ -652,7 +737,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return true; // Keep message channel open for async response
 });
 
-// Handle chrome alarms for periodic glucose updates
+// Handle chrome alarms for periodic glucose updates and watchdog recovery
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === backgroundService.ALARM_NAME) {
     console.log(
@@ -674,6 +759,12 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
           error instanceof Error ? error.message : String(error);
         console.error("❌ Alarm-triggered update failed:", errorMessage);
       }
+    }
+  } else if (alarm.name === backgroundService.WATCHDOG_ALARM_NAME) {
+    try {
+      await backgroundService.handleWatchdog();
+    } catch (error) {
+      console.error("❌ Watchdog alarm failed:", error);
     }
   }
 });

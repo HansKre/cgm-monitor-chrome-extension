@@ -1,2 +1,2 @@
 overrides:
-  serialize-javascript@<=7.0.2: '>=7.0.3'
+  serialize-javascript@<=7.0.4: '>=7.0.5'
